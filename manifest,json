@@ -1,0 +1,6 @@
+{
+  "name": "Gigabyte RX 6700 XT Plugin",
+  "author": "Zitt",
+  "version": "1.0.0",
+  "devices": ["rx6700xt_custom"]
+}
