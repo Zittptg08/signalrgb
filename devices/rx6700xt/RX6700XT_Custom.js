@@ -29,16 +29,60 @@ export function ControllableParameters() {
 
 let LightingMode;
 let forcedColor;
+let busRef;
+
+const AMD_VENDOR_ID = 0x1002;
+const GIGABYTE_VENDOR_ID = 0x1458;
+const RX6700XT_DEVICE_ID = 0x73DF;
+const ADDRESS = 0x50; // SMBus I2C address
+
+export function Scan(bus) {
+  if (bus.Vendor() !== AMD_VENDOR_ID) return [];
+  if (bus.SubVendor() !== GIGABYTE_VENDOR_ID) return [];
+  if (bus.Product() !== RX6700XT_DEVICE_ID) return [];
+
+  // Nếu cần kiểm tra thêm SubDevice ID, bỏ comment dòng dưới
+  // if (bus.SubDevice() !== 0x40E1) return [];
+
+  bus.log("Checking RX 6700 XT on SMBus...", { toFile: true });
+
+  // Gửi gói test
+  bus.WriteBlockWithoutRegister(8, [0xAB]);
+  const [status, data] = bus.ReadBlockWithoutRegister(4);
+
+  if (data && data[0] === 0xAB) {
+    bus.log("RX 6700 XT matched and passed test", { toFile: true });
+    busRef = bus;
+    return [ADDRESS];
+  }
+
+  return [];
+}
+
+export function Initialize() {
+  device.setName("RX 6700 XT Add-on");
+  device.setSize([5, 2]);
+  device.setControllableLeds([["Logo"]], [[2, 1]]);
+}
 
 export function Render() {
   const rgb = LightingMode === "Forced" ? hexToRgb(forcedColor) : device.color(2, 1);
-  const packet = [0x40, rgb[0], rgb[1], rgb[2], 0x01];
+  applyColor(rgb);
+  device.pause(10);
+}
 
-  // Set static mode
-  device.bus().WriteBlockWithoutRegister(8, [0x88, 0x01, 0x06, 0x63, 0x08, 0x01]);
+export function Shutdown() {
+  applyColor([0, 0, 0]); // Tắt LED khi shutdown
+}
 
-  // Send color to LED
-  device.bus().WriteBlockWithoutRegister(8, packet);
+function applyColor(rgb) {
+  if (!busRef) return;
+
+  // Static mode command
+  busRef.WriteBlockWithoutRegister(8, [0x88, 0x01, 0x06, 0x63, 0x08, 0x01]);
+
+  // Send RGB packet
+  busRef.WriteBlockWithoutRegister(8, [0x40, rgb[0], rgb[1], rgb[2], 0x01]);
 }
 
 function hexToRgb(hex) {
@@ -49,3 +93,4 @@ function hexToRgb(hex) {
     parseInt(result[3], 16)
   ] : [255, 255, 255];
 }
+
